@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>RPS Chess 5x5</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      :root {
+        --bg-color: #1a1a2e;
+        --panel-color: #16213e;
+        --accent-color: #4cc9f0;
+        --player-color: #4361ee;
+        --bot-color: #e63946;
+      }
+
+      body {
+        font-family: "Segoe UI", Roboto, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background: var(--bg-color);
+        color: #e9e9e9;
+        margin: 0;
+        padding: 10px;
+        overflow: hidden;
+        touch-action: manipulation;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+        margin: 5px 0;
+        color: var(--accent-color);
+      }
+
+      #game-container {
+        position: relative;
+        width: 100%;
+        max-width: 400px;
+        aspect-ratio: 1/1;
+      }
+
+      #game-board {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        grid-template-rows: repeat(5, 1fr);
+        gap: 5px;
+        background: var(--panel-color);
+        padding: 8px;
+        border-radius: 8px;
+        border: 2px solid #0f3460;
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+      }
+
+      .cell {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 8vw;
+        cursor: pointer;
+        user-select: none;
+        border-radius: 6px;
+        transition: 0.2s;
+        background: #0f3460;
+      }
+      @media (min-width: 400px) {
+        .cell {
+          font-size: 32px;
+        }
+      }
+
+      .selected {
+        box-shadow: 0 0 15px var(--accent-color);
+        outline: 3px solid var(--accent-color);
+        z-index: 2;
+      }
+      .player1 {
+        background: var(--player-color);
+      }
+      .player2 {
+        background: var(--bot-color);
+      }
+
+      #overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(26, 26, 46, 0.95);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        z-index: 100;
+      }
+      #overlay-text {
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 20px;
+      }
+
+      .controls {
+        margin-top: 15px;
+        display: flex;
+        gap: 8px;
+        width: 100%;
+        max-width: 400px;
+      }
+      button {
+        flex: 1;
+        padding: 12px 5px;
+        font-size: 14px;
+        cursor: pointer;
+        font-weight: bold;
+        background: var(--accent-color);
+        color: #1a1a2e;
+        border: none;
+        border-radius: 5px;
+      }
+      button#reset-btn {
+        background: var(--bot-color);
+        color: white;
+      }
+
+      #status {
+        margin: 10px 0;
+        font-size: 14px;
+        color: var(--accent-color);
+        text-align: center;
+        height: 1.2em;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>RPS Chess 5x5</h1>
+    <div id="status">Настрой позиции и жми Старт</div>
+
+    <div id="game-container">
+      <div id="game-board"></div>
+      <div id="overlay">
+        <div id="overlay-text">ПОБЕДА!</div>
+        <button onclick="resetGame()">Заново</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="shuffle-btn">Обновить</button>
+      <button id="start-btn">Старт</button>
+      <button id="reset-btn" onclick="resetGame()">Сброс</button>
+    </div>
+
+    <script>
+      // Инициализация Telegram WebApp
+      const tg = window.Telegram.WebApp;
+      tg.expand(); // Расширяем на все окно
+
+      const boardSize = 5;
+      const types = ["✊", "✌️", "✋"];
+      let board = [];
+      let selectedCell = null;
+      let gameStarted = false;
+      let currentPlayer = 1;
+
+      const boardEl = document.getElementById("game-board");
+      const statusEl = document.getElementById("status");
+      const overlay = document.getElementById("overlay");
+
+      function createBoard() {
+        board = Array(boardSize)
+          .fill()
+          .map(() => Array(boardSize).fill(null));
+        const p1 = shuffle([...Array(5)].map((_, i) => types[i % 3]));
+        const p2 = shuffle([...Array(5)].map((_, i) => types[i % 3]));
+        for (let i = 0; i < 5; i++) {
+          board[0][i] = { type: p2[i], player: 2, revealed: false };
+          board[4][i] = { type: p1[i], player: 1, revealed: true };
+        }
+        render();
+      }
+
+      function shuffle(a) {
+        return a.sort(() => Math.random() - 0.5);
+      }
+
+      function render() {
+        boardEl.innerHTML = "";
+        for (let r = 0; r < boardSize; r++) {
+          for (let c = 0; c < boardSize; c++) {
+            const cell = document.createElement("div");
+            cell.className = "cell";
+            const p = board[r][c];
+            if (p) {
+              cell.classList.add("player" + p.player);
+              cell.innerText = p.revealed || p.player === 1 ? p.type : "?";
+            }
+            if (selectedCell?.r === r && selectedCell?.c === c)
+              cell.classList.add("selected");
+            cell.onclick = () => handleCell(r, c);
+            boardEl.appendChild(cell);
+          }
+        }
+      }
+
+      function handleCell(r, c) {
+        if (!gameStarted || currentPlayer !== 1) return;
+        const p = board[r][c];
+        if (selectedCell) {
+          if (
+            Math.abs(r - selectedCell.r) <= 1 &&
+            Math.abs(c - selectedCell.c) <= 1 &&
+            !(r === selectedCell.r && c === selectedCell.c)
+          ) {
+            if (move(selectedCell.r, selectedCell.c, r, c)) {
+              selectedCell = null;
+              render();
+              if (gameStarted) setTimeout(botMove, 600);
+            }
+          } else {
+            selectedCell = null;
+            render();
+          }
+        } else if (p?.player === 1) {
+          selectedCell = { r, c };
+          render();
+        }
+      }
+
+      function move(fR, fC, tR, tC) {
+        const att = board[fR][fC];
+        const tar = board[tR][tC];
+        if (tar?.player === att.player) return false;
+        if (tar) {
+          const res = compare(att.type, tar.type);
+          att.revealed = tar.revealed = true;
+          if (res === "win") board[tR][tC] = att;
+          else if (res === "draw") board[tR][tC] = null;
+          board[fR][fC] = null;
+        } else {
+          board[tR][tC] = att;
+          board[fR][fC] = null;
+        }
+        currentPlayer = att.player === 1 ? 2 : 1;
+        check();
+        return true;
+      }
+
+      function botMove() {
+        if (!gameStarted) return;
+        let m = [];
+        for (let r = 0; r < 5; r++)
+          for (let c = 0; c < 5; c++) {
+            if (board[r][c]?.player === 2) {
+              for (let dr = -1; dr <= 1; dr++)
+                for (let dc = -1; dc <= 1; dc++) {
+                  let nr = r + dr,
+                    nc = c + dc;
+                  if (
+                    nr >= 0 &&
+                    nr < 5 &&
+                    nc >= 0 &&
+                    nc < 5 &&
+                    !(dr === 0 && dc === 0)
+                  ) {
+                    if (board[nr][nc]?.player !== 2)
+                      m.push({ fR: r, fC: c, tR: nr, tC: nc });
+                  }
+                }
+            }
+          }
+        if (m.length) {
+          const atts = m.filter((x) => board[x.tR][x.tC]?.player === 1);
+          const move = atts.length
+            ? atts[Math.floor(Math.random() * atts.length)]
+            : m[Math.floor(Math.random() * m.length)];
+          executeBotMove(move);
+        }
+      }
+
+      function executeBotMove(m) {
+        move(m.fR, m.fC, m.tR, m.tC);
+        render();
+      }
+
+      function compare(a, b) {
+        if (a === b) return "draw";
+        return (a === "✊" && b === "✌️") ||
+          (a === "✌️" && b === "✋") ||
+          (a === "✋" && b === "✊")
+          ? "win"
+          : "lose";
+      }
+
+      function check() {
+        const p1 = board.flat().some((x) => x?.player === 1);
+        const p2 = board.flat().some((x) => x?.player === 2);
+        if (!p1) end("БОТ ПОБЕДИЛ");
+        else if (!p2) end("ТЫ ПОБЕДИЛ");
+      }
+
+      function end(t) {
+        gameStarted = false;
+        document.getElementById("overlay-text").innerText = t;
+        overlay.style.display = "flex";
+      }
+
+      function resetGame() {
+        gameStarted = false;
+        overlay.style.display = "none";
+        document.getElementById("shuffle-btn").style.display = "block";
+        document.getElementById("start-btn").style.display = "block";
+        currentPlayer = 1;
+        selectedCell = null;
+        createBoard();
+      }
+
+      document.getElementById("shuffle-btn").onclick = () => {
+        if (!gameStarted) createBoard();
+      };
+      document.getElementById("start-btn").onclick = () => {
+        gameStarted = true;
+        document.getElementById("shuffle-btn").style.display = "none";
+        document.getElementById("start-btn").style.display = "none";
+        statusEl.innerText = "Твой ход";
+      };
+
+      createBoard();
+    </script>
+  </body>
+</html>
