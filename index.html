@@ -109,13 +109,16 @@
       .controls {
         margin-top: 15px;
         display: flex;
-        gap: 8px;
+        justify-content: center;
+        gap: 10px;
         width: 100%;
         max-width: 400px;
       }
+
       button {
-        flex: 1;
-        padding: 12px 5px;
+        width: 110px;
+        height: 45px;
+        padding: 5px;
         font-size: 14px;
         cursor: pointer;
         font-weight: bold;
@@ -123,6 +126,11 @@
         color: #1a1a2e;
         border: none;
         border-radius: 5px;
+        flex-shrink: 0;
+      }
+      /* Чтобы кнопка Заново не прыгала, когда исчезнут остальные */
+      #reset-btn {
+        display: block !important; /* Гарантируем, что она видна */
       }
       button#reset-btn {
         background: var(--bot-color);
@@ -313,8 +321,8 @@
       function resetGame() {
         gameStarted = false;
         overlay.style.display = "none";
-        document.getElementById("shuffle-btn").style.display = "block";
-        document.getElementById("start-btn").style.display = "block";
+        document.getElementById("shuffle-btn").style.visibility = "visible";
+        document.getElementById("start-btn").style.visibility = "visible";
         currentPlayer = 1;
         selectedCell = null;
         createBoard();
@@ -325,8 +333,8 @@
       };
       document.getElementById("start-btn").onclick = () => {
         gameStarted = true;
-        document.getElementById("shuffle-btn").style.display = "none";
-        document.getElementById("start-btn").style.display = "none";
+        document.getElementById("shuffle-btn").style.visibility = "hidden";
+        document.getElementById("start-btn").style.visibility = "hidden";
         statusEl.innerText = "Твой ход";
       };
 
